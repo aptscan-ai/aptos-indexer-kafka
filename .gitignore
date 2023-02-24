@@ -110,3 +110,4 @@ python_dags/.idea
 src/adhoc/*
 
 graphql/generated_schemas
+.idea

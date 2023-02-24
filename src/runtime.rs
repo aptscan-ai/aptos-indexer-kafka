@@ -11,7 +11,7 @@ use crate::{
         coin_processor::CoinTransactionProcessor, default_processor::DefaultTransactionProcessor,
         stake_processor::StakeTransactionProcessor, token_processor::TokenTransactionProcessor,
         Processor,
-        custom_processor::CustomTransactionProcessor
+        custom_processor::CustomTransactionProcessor,
     },
 };
 use aptos_api::context::Context;
@@ -57,7 +57,7 @@ impl MovingAverage {
                     } else {
                         break;
                     }
-                },
+                }
             }
         }
         self.avg()
@@ -89,6 +89,29 @@ pub fn bootstrap(
 
     let indexer_config = config.indexer.clone();
     let node_config = config.clone();
+
+    let processors: [Option<String>; 4] = [
+        Option::from(String::from("coin_processor")),
+        Option::from(String::from("token_processor")),
+        Option::from(String::from("stake_processor")),
+        Option::from(String::from("default_processor"))
+    ];
+    let n = processors.len();
+
+    for i in 0..n {
+        if processors[i] != config.indexer.processor {
+            let mut new_indexer_config = config.indexer.clone();
+            new_indexer_config.processor = processors[i].clone();
+            let new_db = db.clone();
+            let new_mp_sender = mp_sender.clone();
+            let new_node_config = node_config.clone();
+
+            runtime.spawn(async move {
+                let context = Arc::new(Context::new(chain_id, new_db, new_mp_sender, new_node_config));
+                run_forever(new_indexer_config, context).await;
+            });
+        }
+    }
 
     runtime.spawn(async move {
         let context = Arc::new(Context::new(chain_id, db, mp_sender, node_config));
@@ -128,7 +151,7 @@ pub async fn run_forever(config: IndexerConfig, context: Arc<Context>) {
     let processor: Arc<dyn TransactionProcessor> = match processor_enum {
         Processor::DefaultProcessor => {
             Arc::new(DefaultTransactionProcessor::new(conn_pool.clone()))
-        },
+        }
         Processor::TokenProcessor => Arc::new(TokenTransactionProcessor::new(
             conn_pool.clone(),
             config.ans_contract_address,
@@ -235,7 +258,7 @@ pub async fn run_forever(config: IndexerConfig, context: Arc<Context>) {
                         "Error in '{}' while processing batch: {:?}",
                         processor_name, err
                     );
-                },
+                }
             };
             batch_start_version =
                 std::cmp::min(batch_start_version, processed_result.start_version);
