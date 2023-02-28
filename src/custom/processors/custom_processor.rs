@@ -27,7 +27,7 @@ use crate::{
     },
     schema,
 };
-use crate::driver::publisher::Publisher;
+use crate::custom::driver::publisher::Publisher;
 
 pub const NAME: &str = "custom_processor";
 

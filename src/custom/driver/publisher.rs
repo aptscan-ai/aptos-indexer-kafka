@@ -10,8 +10,8 @@ use {
         transactions::{TransactionDetail, TransactionModel},
     },
 };
-use crate::driver::config::DriverConfig;
-use crate::driver::producer::Producer;
+use crate::custom::driver::config::DriverConfig;
+use crate::custom::driver::producer::Producer;
 
 pub struct Publisher {
     producer: ThreadedProducer<DefaultProducerContext>,
@@ -21,7 +21,7 @@ pub struct Publisher {
 
 impl Publisher {
     pub fn new() -> Self {
-        let conf_map: DriverConfig = DriverConfig::read_from("./crates/indexer/config.json");
+        let conf_map: DriverConfig = DriverConfig::read_from("crates/indexer/config.json");
         Self {
             producer: Producer::new(conf_map.kafka).create(),
             topics: conf_map.topics

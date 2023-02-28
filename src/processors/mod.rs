@@ -5,7 +5,8 @@ pub mod coin_processor;
 pub mod default_processor;
 pub mod stake_processor;
 pub mod token_processor;
-pub mod custom_processor;
+use custom::processors::custom_processor;
+use crate::custom;
 
 use self::{
     coin_processor::NAME as COIN_PROCESSOR_NAME, default_processor::NAME as DEFAULT_PROCESSOR_NAME,

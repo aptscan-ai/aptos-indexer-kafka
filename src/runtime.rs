@@ -21,12 +21,12 @@ use aptos_storage_interface::DbReader;
 use aptos_types::chain_id::ChainId;
 use std::{collections::VecDeque, sync::Arc};
 use tokio::runtime::Runtime;
-use crate::driver::{
+use crate::custom::driver::{
     producer::Producer,
     publisher::Publisher,
     config::DriverConfig
 };
-use crate::processors::custom_processor::CustomTransactionProcessor;
+use crate::custom::processors::custom_processor::CustomTransactionProcessor;
 
 pub struct MovingAverage {
     window_millis: u64,
