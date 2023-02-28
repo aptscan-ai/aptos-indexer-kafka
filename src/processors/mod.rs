@@ -18,7 +18,7 @@ pub enum Processor {
     DefaultProcessor,
     TokenProcessor,
     StakeProcessor,
-    CustomProcessor,
+    CustomProcessor
 }
 
 impl Processor {

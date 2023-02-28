@@ -19,6 +19,7 @@ pub mod processors;
 pub mod runtime;
 pub mod schema;
 mod util;
+mod driver;
 
 /// By default, skips test unless `INDEXER_DATABASE_URL` is set.
 /// In CI, will explode if `INDEXER_DATABASE_URL` is NOT set.

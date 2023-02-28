@@ -1,5 +1,10 @@
-// Copyright © Aptos Foundation
-// SPDX-License-Identifier: Apache-2.0
+use std::{collections::HashMap, fmt::Debug};
+
+use async_trait::async_trait;
+use diesel::{ExpressionMethods, pg::upsert::excluded, PgConnection, result::Error};
+use field_count::FieldCount;
+
+use aptos_api_types::Transaction;
 
 use crate::{
     database::{
@@ -22,20 +27,21 @@ use crate::{
     },
     schema,
 };
-use aptos_api_types::Transaction;
-use async_trait::async_trait;
-use diesel::{pg::upsert::excluded, result::Error, ExpressionMethods, PgConnection};
-use field_count::FieldCount;
-use std::{collections::HashMap, fmt::Debug};
+use crate::driver::publisher::Publisher;
 
 pub const NAME: &str = "custom_processor";
+
 pub struct CustomTransactionProcessor {
     connection_pool: PgDbPool,
+    publisher: Publisher,
 }
 
 impl CustomTransactionProcessor {
-    pub fn new(connection_pool: PgDbPool) -> Self {
-        Self { connection_pool }
+    pub fn new(connection_pool: PgDbPool, publisher: Publisher) -> Self {
+        Self {
+            connection_pool,
+            publisher,
+        }
     }
 }
 
@@ -44,49 +50,116 @@ impl Debug for CustomTransactionProcessor {
         let state = &self.connection_pool.state();
         write!(
             f,
-            "CustomTransactionProcessor {{ connections: {:?}  idle_connections: {:?} }}",
+            "DefaultTransactionProcessor {{ connections: {:?}  idle_connections: {:?} }}",
             state.connections, state.idle_connections
         )
     }
 }
 
-fn insert_to_db_impl(
-    conn: &mut PgConnection,
-    txns: &[TransactionModel],
-    txn_details: (
-        &[UserTransactionModel],
-        &[Signature],
-        &[BlockMetadataTransactionModel],
-    ),
-    events: &[EventModel],
-    wscs: &[WriteSetChangeModel],
-    wsc_details: (
-        &[MoveModule],
-        &[MoveResource],
-        &[TableItem],
-        &[CurrentTableItem],
-        &[TableMetadata],
-    ),
-) -> Result<(), diesel::result::Error> {
-    let (user_transactions, signatures, block_metadata_transactions) = txn_details;
-    let (move_modules, move_resources, table_items, current_table_items, table_metadata) =
-        wsc_details;
-    print!("{:?}",txns);
-    // insert_transactions(conn, txns)?;
-    // insert_user_transactions(conn, user_transactions)?;
-    // insert_signatures(conn, signatures)?;
-    // insert_block_metadata_transactions(conn, block_metadata_transactions)?;
-    // insert_events(conn, events)?;
-    // insert_write_set_changes(conn, wscs)?;
-    // insert_move_modules(conn, move_modules)?;
-    // insert_move_resources(conn, move_resources)?;
-    // insert_table_items(conn, table_items)?;
-    // insert_current_table_items(conn, current_table_items)?;
-    // insert_table_metadata(conn, table_metadata)?;
-    Ok(())
+#[async_trait]
+impl TransactionProcessor for CustomTransactionProcessor {
+    fn name(&self) -> &'static str {
+        NAME
+    }
+
+    async fn process_transactions(
+        &self,
+        transactions: Vec<Transaction>,
+        start_version: u64,
+        end_version: u64,
+    ) -> Result<ProcessingResult, TransactionProcessingError> {
+        let (txns, txn_details, events, write_set_changes, wsc_details) =
+            TransactionModel::from_transactions(&transactions);
+
+        let mut signatures = vec![];
+        let mut user_transactions = vec![];
+        let mut block_metadata_transactions = vec![];
+        for detail in txn_details {
+            match detail {
+                TransactionDetail::User(user_txn, sigs) => {
+                    signatures.append(&mut sigs.clone());
+                    user_transactions.push(user_txn.clone());
+                }
+                TransactionDetail::BlockMetadata(bmt) => {
+                    block_metadata_transactions.push(bmt.clone())
+                }
+            }
+        }
+        let mut move_modules = vec![];
+        let mut move_resources = vec![];
+        let mut table_items = vec![];
+        let mut current_table_items = HashMap::new();
+        let mut table_metadata = HashMap::new();
+        for detail in wsc_details {
+            match detail {
+                WriteSetChangeDetail::Module(module) => move_modules.push(module.clone()),
+                WriteSetChangeDetail::Resource(resource) => move_resources.push(resource.clone()),
+                WriteSetChangeDetail::Table(item, current_item, metadata) => {
+                    table_items.push(item.clone());
+                    current_table_items.insert(
+                        (
+                            current_item.table_handle.clone(),
+                            current_item.key_hash.clone(),
+                        ),
+                        current_item.clone(),
+                    );
+                    if let Some(meta) = metadata {
+                        table_metadata.insert(meta.handle.clone(), meta.clone());
+                    }
+                }
+            }
+        }
+        // Getting list of values and sorting by pk in order to avoid postgres deadlock since we're doing multi threaded db writes
+        let mut current_table_items = current_table_items
+            .into_values()
+            .collect::<Vec<CurrentTableItem>>();
+        let mut table_metadata = table_metadata.into_values().collect::<Vec<TableMetadata>>();
+        // Sort by PK
+        current_table_items
+            .sort_by(|a, b| (&a.table_handle, &a.key_hash).cmp(&(&b.table_handle, &b.key_hash)));
+        table_metadata.sort_by(|a, b| a.handle.cmp(&b.handle));
+
+        let mut conn = self.get_conn();
+        let tx_result = insert_to_db(
+            &self.publisher,
+            &mut conn,
+            self.name(),
+            start_version,
+            end_version,
+            txns,
+            (user_transactions, signatures, block_metadata_transactions),
+            events,
+            write_set_changes,
+            (
+                move_modules,
+                move_resources,
+                table_items,
+                current_table_items,
+                table_metadata,
+            ),
+        );
+        match tx_result {
+            Ok(_) => Ok(ProcessingResult::new(
+                self.name(),
+                start_version,
+                end_version,
+            )),
+            Err(err) => Err(TransactionProcessingError::TransactionCommitError((
+                anyhow::Error::from(err),
+                start_version,
+                end_version,
+                self.name(),
+            ))),
+        }
+    }
+
+    fn connection_pool(&self) -> &PgDbPool {
+        &self.connection_pool
+    }
 }
 
 fn insert_to_db(
+    publisher: &Publisher,
     conn: &mut PgPoolConnection,
     name: &'static str,
     start_version: u64,
@@ -121,6 +194,7 @@ fn insert_to_db(
         .read_write()
         .run::<_, Error, _>(|pg_conn| {
             insert_to_db_impl(
+                publisher,
                 pg_conn,
                 &txns,
                 (
@@ -157,6 +231,7 @@ fn insert_to_db(
                 .read_write()
                 .run::<_, Error, _>(|pg_conn| {
                     insert_to_db_impl(
+                        publisher,
                         pg_conn,
                         &txns,
                         (
@@ -175,336 +250,64 @@ fn insert_to_db(
                         ),
                     )
                 })
-        },
+        }
     }
+}
+
+fn insert_to_db_impl(
+    publisher: &Publisher,
+    conn: &mut PgConnection,
+    txns: &[TransactionModel],
+    txn_details: (
+        &[UserTransactionModel],
+        &[Signature],
+        &[BlockMetadataTransactionModel],
+    ),
+    events: &[EventModel],
+    wscs: &[WriteSetChangeModel],
+    wsc_details: (
+        &[MoveModule],
+        &[MoveResource],
+        &[TableItem],
+        &[CurrentTableItem],
+        &[TableMetadata],
+    ),
+) -> Result<(), diesel::result::Error> {
+    let (user_transactions, signatures, block_metadata_transactions) = txn_details;
+    let (move_modules, move_resources, table_items, current_table_items, table_metadata) =
+        wsc_details;
+    insert_transactions(publisher, txns)?;
+    // insert_user_transactions(conn, user_transactions)?;
+    // insert_signatures(conn, signatures)?;
+    // insert_block_metadata_transactions(conn, block_metadata_transactions)?;
+    // insert_events(conn, events)?;
+    // insert_write_set_changes(conn, wscs)?;
+    // insert_move_modules(conn, move_modules)?;
+    // insert_move_resources(conn, move_resources)?;
+    // insert_table_items(conn, table_items)?;
+    // insert_current_table_items(conn, current_table_items)?;
+    // insert_table_metadata(conn, table_metadata)?;
+    Ok(())
 }
 
 fn insert_transactions(
-    conn: &mut PgConnection,
+    publisher: &Publisher,
     items_to_insert: &[TransactionModel],
 ) -> Result<(), diesel::result::Error> {
-    use schema::transactions::dsl::*;
-    let chunks = get_chunks(items_to_insert.len(), TransactionModel::field_count());
-    for (start_ind, end_ind) in chunks {
-        execute_with_better_error(
-            conn,
-            diesel::insert_into(schema::transactions::table)
-                .values(&items_to_insert[start_ind..end_ind])
-                .on_conflict(version)
-                .do_nothing(),
-            None,
-        )?;
-    }
+    // TODO: publish transactions to kafka
+    publisher.send_txs(items_to_insert);
+
+    // use schema::transactions::dsl::*;
+    // let chunks = get_chunks(items_to_insert.len(), TransactionModel::field_count());
+    // for (start_ind, end_ind) in chunks {
+    //     execute_with_better_error(
+    //         conn,
+    //         diesel::insert_into(schema::transactions::table)
+    //             .values(&items_to_insert[start_ind..end_ind])
+    //             .on_conflict(version)
+    //             .do_nothing(),
+    //         None,
+    //     )?;
+    // }
     Ok(())
-}
-
-fn insert_user_transactions(
-    conn: &mut PgConnection,
-    items_to_insert: &[UserTransactionModel],
-) -> Result<(), diesel::result::Error> {
-    use schema::user_transactions::dsl::*;
-    let chunks = get_chunks(items_to_insert.len(), UserTransactionModel::field_count());
-    for (start_ind, end_ind) in chunks {
-        execute_with_better_error(
-            conn,
-            diesel::insert_into(schema::user_transactions::table)
-                .values(&items_to_insert[start_ind..end_ind])
-                .on_conflict(version)
-                .do_nothing(),
-            None,
-        )?;
-    }
-    Ok(())
-}
-
-fn insert_signatures(
-    conn: &mut PgConnection,
-    items_to_insert: &[Signature],
-) -> Result<(), diesel::result::Error> {
-    use schema::signatures::dsl::*;
-    let chunks = get_chunks(items_to_insert.len(), Signature::field_count());
-    for (start_ind, end_ind) in chunks {
-        execute_with_better_error(
-            conn,
-            diesel::insert_into(schema::signatures::table)
-                .values(&items_to_insert[start_ind..end_ind])
-                .on_conflict((
-                    transaction_version,
-                    multi_agent_index,
-                    multi_sig_index,
-                    is_sender_primary,
-                ))
-                .do_nothing(),
-            None,
-        )?;
-    }
-    Ok(())
-}
-
-fn insert_block_metadata_transactions(
-    conn: &mut PgConnection,
-    items_to_insert: &[BlockMetadataTransactionModel],
-) -> Result<(), diesel::result::Error> {
-    use schema::block_metadata_transactions::dsl::*;
-    let chunks = get_chunks(
-        items_to_insert.len(),
-        BlockMetadataTransactionModel::field_count(),
-    );
-    for (start_ind, end_ind) in chunks {
-        execute_with_better_error(
-            conn,
-            diesel::insert_into(schema::block_metadata_transactions::table)
-                .values(&items_to_insert[start_ind..end_ind])
-                .on_conflict(version)
-                .do_nothing(),
-            None,
-        )?;
-    }
-    Ok(())
-}
-
-fn insert_events(
-    conn: &mut PgConnection,
-    items_to_insert: &[EventModel],
-) -> Result<(), diesel::result::Error> {
-    use schema::events::dsl::*;
-    let chunks = get_chunks(items_to_insert.len(), EventModel::field_count());
-    for (start_ind, end_ind) in chunks {
-        execute_with_better_error(
-            conn,
-            diesel::insert_into(schema::events::table)
-                .values(&items_to_insert[start_ind..end_ind])
-                .on_conflict((account_address, creation_number, sequence_number))
-                .do_update()
-                .set((
-                    inserted_at.eq(excluded(inserted_at)),
-                    event_index.eq(excluded(event_index)),
-                )),
-            None,
-        )?;
-    }
-    Ok(())
-}
-
-fn insert_write_set_changes(
-    conn: &mut PgConnection,
-    items_to_insert: &[WriteSetChangeModel],
-) -> Result<(), diesel::result::Error> {
-    use schema::write_set_changes::dsl::*;
-    let chunks = get_chunks(items_to_insert.len(), WriteSetChangeModel::field_count());
-    for (start_ind, end_ind) in chunks {
-        execute_with_better_error(
-            conn,
-            diesel::insert_into(schema::write_set_changes::table)
-                .values(&items_to_insert[start_ind..end_ind])
-                .on_conflict((transaction_version, index))
-                .do_nothing(),
-            None,
-        )?;
-    }
-    Ok(())
-}
-
-fn insert_move_modules(
-    conn: &mut PgConnection,
-    items_to_insert: &[MoveModule],
-) -> Result<(), diesel::result::Error> {
-    use schema::move_modules::dsl::*;
-    let chunks = get_chunks(items_to_insert.len(), MoveModule::field_count());
-    for (start_ind, end_ind) in chunks {
-        execute_with_better_error(
-            conn,
-            diesel::insert_into(schema::move_modules::table)
-                .values(&items_to_insert[start_ind..end_ind])
-                .on_conflict((transaction_version, write_set_change_index))
-                .do_nothing(),
-            None,
-        )?;
-    }
-    Ok(())
-}
-
-fn insert_move_resources(
-    conn: &mut PgConnection,
-    items_to_insert: &[MoveResource],
-) -> Result<(), diesel::result::Error> {
-    use schema::move_resources::dsl::*;
-    let chunks = get_chunks(items_to_insert.len(), MoveResource::field_count());
-    for (start_ind, end_ind) in chunks {
-        execute_with_better_error(
-            conn,
-            diesel::insert_into(schema::move_resources::table)
-                .values(&items_to_insert[start_ind..end_ind])
-                .on_conflict((transaction_version, write_set_change_index))
-                .do_nothing(),
-            None,
-        )?;
-    }
-    Ok(())
-}
-
-fn insert_table_items(
-    conn: &mut PgConnection,
-    items_to_insert: &[TableItem],
-) -> Result<(), diesel::result::Error> {
-    use schema::table_items::dsl::*;
-    let chunks = get_chunks(items_to_insert.len(), TableItem::field_count());
-    for (start_ind, end_ind) in chunks {
-        execute_with_better_error(
-            conn,
-            diesel::insert_into(schema::table_items::table)
-                .values(&items_to_insert[start_ind..end_ind])
-                .on_conflict((transaction_version, write_set_change_index))
-                .do_nothing(),
-            None,
-        )?;
-    }
-    Ok(())
-}
-
-fn insert_current_table_items(
-    conn: &mut PgConnection,
-    items_to_insert: &[CurrentTableItem],
-) -> Result<(), diesel::result::Error> {
-    use schema::current_table_items::dsl::*;
-    let chunks = get_chunks(items_to_insert.len(), CurrentTableItem::field_count());
-    for (start_ind, end_ind) in chunks {
-        execute_with_better_error(
-            conn,
-            diesel::insert_into(schema::current_table_items::table)
-                .values(&items_to_insert[start_ind..end_ind])
-                .on_conflict((table_handle, key_hash))
-                .do_update()
-                .set((
-                    key.eq(excluded(key)),
-                    decoded_key.eq(excluded(decoded_key)),
-                    decoded_value.eq(excluded(decoded_value)),
-                    is_deleted.eq(excluded(is_deleted)),
-                    last_transaction_version.eq(excluded(last_transaction_version)),
-                    inserted_at.eq(excluded(inserted_at)),
-                )),
-                Some(" WHERE current_table_items.last_transaction_version <= excluded.last_transaction_version "),
-        )?;
-    }
-    Ok(())
-}
-
-fn insert_table_metadata(
-    conn: &mut PgConnection,
-    items_to_insert: &[TableMetadata],
-) -> Result<(), diesel::result::Error> {
-    use schema::table_metadatas::dsl::*;
-    let chunks = get_chunks(items_to_insert.len(), TableMetadata::field_count());
-    for (start_ind, end_ind) in chunks {
-        execute_with_better_error(
-            conn,
-            diesel::insert_into(schema::table_metadatas::table)
-                .values(&items_to_insert[start_ind..end_ind])
-                .on_conflict(handle)
-                .do_nothing(),
-            None,
-        )?;
-    }
-    Ok(())
-}
-
-#[async_trait]
-impl TransactionProcessor for CustomTransactionProcessor {
-    fn name(&self) -> &'static str {
-        NAME
-    }
-
-    async fn process_transactions(
-        &self,
-        transactions: Vec<Transaction>,
-        start_version: u64,
-        end_version: u64,
-    ) -> Result<ProcessingResult, TransactionProcessingError> {
-        let (txns, txn_details, events, write_set_changes, wsc_details) =
-            TransactionModel::from_transactions(&transactions);
-
-        let mut signatures = vec![];
-        let mut user_transactions = vec![];
-        let mut block_metadata_transactions = vec![];
-        for detail in txn_details {
-            match detail {
-                TransactionDetail::User(user_txn, sigs) => {
-                    signatures.append(&mut sigs.clone());
-                    user_transactions.push(user_txn.clone());
-                },
-                TransactionDetail::BlockMetadata(bmt) => {
-                    block_metadata_transactions.push(bmt.clone())
-                },
-            }
-        }
-        let mut move_modules = vec![];
-        let mut move_resources = vec![];
-        let mut table_items = vec![];
-        let mut current_table_items = HashMap::new();
-        let mut table_metadata = HashMap::new();
-        for detail in wsc_details {
-            match detail {
-                WriteSetChangeDetail::Module(module) => move_modules.push(module.clone()),
-                WriteSetChangeDetail::Resource(resource) => move_resources.push(resource.clone()),
-                WriteSetChangeDetail::Table(item, current_item, metadata) => {
-                    table_items.push(item.clone());
-                    current_table_items.insert(
-                        (
-                            current_item.table_handle.clone(),
-                            current_item.key_hash.clone(),
-                        ),
-                        current_item.clone(),
-                    );
-                    if let Some(meta) = metadata {
-                        table_metadata.insert(meta.handle.clone(), meta.clone());
-                    }
-                },
-            }
-        }
-        // Getting list of values and sorting by pk in order to avoid postgres deadlock since we're doing multi threaded db writes
-        let mut current_table_items = current_table_items
-            .into_values()
-            .collect::<Vec<CurrentTableItem>>();
-        let mut table_metadata = table_metadata.into_values().collect::<Vec<TableMetadata>>();
-        // Sort by PK
-        current_table_items
-            .sort_by(|a, b| (&a.table_handle, &a.key_hash).cmp(&(&b.table_handle, &b.key_hash)));
-        table_metadata.sort_by(|a, b| a.handle.cmp(&b.handle));
-
-        let mut conn = self.get_conn();
-        let tx_result = insert_to_db(
-            &mut conn,
-            self.name(),
-            start_version,
-            end_version,
-            txns,
-            (user_transactions, signatures, block_metadata_transactions),
-            events,
-            write_set_changes,
-            (
-                move_modules,
-                move_resources,
-                table_items,
-                current_table_items,
-                table_metadata,
-            ),
-        );
-        match tx_result {
-            Ok(_) => Ok(ProcessingResult::new(
-                self.name(),
-                start_version,
-                end_version,
-            )),
-            Err(err) => Err(TransactionProcessingError::TransactionCommitError((
-                anyhow::Error::from(err),
-                start_version,
-                end_version,
-                self.name(),
-            ))),
-        }
-    }
-
-    fn connection_pool(&self) -> &PgDbPool {
-        &self.connection_pool
-    }
 }

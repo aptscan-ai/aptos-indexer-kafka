@@ -11,7 +11,6 @@ use crate::{
         coin_processor::CoinTransactionProcessor, default_processor::DefaultTransactionProcessor,
         stake_processor::StakeTransactionProcessor, token_processor::TokenTransactionProcessor,
         Processor,
-        custom_processor::CustomTransactionProcessor
     },
 };
 use aptos_api::context::Context;
@@ -22,6 +21,12 @@ use aptos_storage_interface::DbReader;
 use aptos_types::chain_id::ChainId;
 use std::{collections::VecDeque, sync::Arc};
 use tokio::runtime::Runtime;
+use crate::driver::{
+    producer::Producer,
+    publisher::Publisher,
+    config::DriverConfig
+};
+use crate::processors::custom_processor::CustomTransactionProcessor;
 
 pub struct MovingAverage {
     window_millis: u64,
@@ -57,7 +62,7 @@ impl MovingAverage {
                     } else {
                         break;
                     }
-                },
+                }
             }
         }
         self.avg()
@@ -122,20 +127,24 @@ pub async fn run_forever(config: IndexerConfig, context: Arc<Context>) {
         "Created the connection pool... "
     );
 
+    let publisher = Publisher::new();
+
     info!(processor_name = processor_name, "Instantiating tailer... ");
 
     let processor_enum = Processor::from_string(&processor_name);
     let processor: Arc<dyn TransactionProcessor> = match processor_enum {
         Processor::DefaultProcessor => {
             Arc::new(DefaultTransactionProcessor::new(conn_pool.clone()))
-        },
+        }
         Processor::TokenProcessor => Arc::new(TokenTransactionProcessor::new(
             conn_pool.clone(),
             config.ans_contract_address,
         )),
         Processor::CoinProcessor => Arc::new(CoinTransactionProcessor::new(conn_pool.clone())),
         Processor::StakeProcessor => Arc::new(StakeTransactionProcessor::new(conn_pool.clone())),
-        Processor::CustomProcessor => Arc::new(CustomTransactionProcessor::new(conn_pool.clone())),
+        Processor::CustomProcessor => {
+            Arc::new(CustomTransactionProcessor::new(conn_pool.clone(), publisher))
+        }
     };
 
     let options =
@@ -235,7 +244,7 @@ pub async fn run_forever(config: IndexerConfig, context: Arc<Context>) {
                         "Error in '{}' while processing batch: {:?}",
                         processor_name, err
                     );
-                },
+                }
             };
             batch_start_version =
                 std::cmp::min(batch_start_version, processed_result.start_version);

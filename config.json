@@ -1,0 +1,10 @@
+{
+  "kafka": {
+    "bootstrap.servers": "localhost:9092",
+    "security.protocol": "PLAINTEXT",
+    "queue.buffering.max.messages": "100000"
+  },
+  "topics": {
+    "transaction_topic": "transaction.topic"
+  }
+}
