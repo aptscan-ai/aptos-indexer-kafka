@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 use rdkafka::ClientConfig;
-use rdkafka::config::FromClientConfig;
 use rdkafka::producer::{DefaultProducerContext, ThreadedProducer};
 
 pub struct Producer {

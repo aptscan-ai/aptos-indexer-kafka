@@ -7,10 +7,14 @@ use crate::{
         fetcher::TransactionFetcherOptions, processing_result::ProcessingResult, tailer::Tailer,
         transaction_processor::TransactionProcessor,
     },
-    processors::{
-        coin_processor::CoinTransactionProcessor, default_processor::DefaultTransactionProcessor,
-        stake_processor::StakeTransactionProcessor, token_processor::TokenTransactionProcessor,
-        Processor,
+    custom::{
+        processors::{
+            CProcessor,
+            custom_coin_processor::CCoinTransactionProcessor,
+            custom_default_processor::CDefaultTransactionProcessor,
+            custom_token_processor::CTokenTransactionProcessor,
+            custom_stake_processor::CStakeTransactionProcessor,
+        }
     },
 };
 use aptos_api::context::Context;
@@ -22,11 +26,9 @@ use aptos_types::chain_id::ChainId;
 use std::{collections::VecDeque, sync::Arc};
 use tokio::runtime::Runtime;
 use crate::custom::driver::{
-    producer::Producer,
+    config::DriverConfig,
     publisher::Publisher,
-    config::DriverConfig
 };
-use crate::custom::processors::custom_processor::CustomTransactionProcessor;
 
 pub struct MovingAverage {
     window_millis: u64,
@@ -92,8 +94,30 @@ pub fn bootstrap(
 
     let runtime = aptos_runtimes::spawn_named_runtime("indexer".into(), None);
 
-    let indexer_config = config.indexer.clone();
+    let mut indexer_config = config.indexer.clone();
     let node_config = config.clone();
+
+    // custom
+    indexer_config.processor = Option::from(String::from("custom_default_processor"));
+    let processors: [Option<String>; 3] = [
+        Option::from(String::from("custom_coin_processor")),
+        Option::from(String::from("custom_token_processor")),
+        Option::from(String::from("custom_stake_processor"))
+    ];
+    let n = processors.len();
+
+    for i in 0..n {
+        let mut new_indexer_config = config.indexer.clone();
+        new_indexer_config.processor = processors[i].clone();
+        let new_db = db.clone();
+        let new_mp_sender = mp_sender.clone();
+        let new_node_config = node_config.clone();
+
+        runtime.spawn(async move {
+            let context = Arc::new(Context::new(chain_id, new_db, new_mp_sender, new_node_config));
+            run_forever(new_indexer_config, context).await;
+        });
+    }
 
     runtime.spawn(async move {
         let context = Arc::new(Context::new(chain_id, db, mp_sender, node_config));
@@ -127,24 +151,22 @@ pub async fn run_forever(config: IndexerConfig, context: Arc<Context>) {
         "Created the connection pool... "
     );
 
-    let publisher = Publisher::new();
-
     info!(processor_name = processor_name, "Instantiating tailer... ");
 
-    let processor_enum = Processor::from_string(&processor_name);
+    // custom
+    let publisher = Publisher::new();
+    let processor_enum = CProcessor::from_string(&processor_name);
     let processor: Arc<dyn TransactionProcessor> = match processor_enum {
-        Processor::DefaultProcessor => {
-            Arc::new(DefaultTransactionProcessor::new(conn_pool.clone()))
+        CProcessor::DefaultProcessor => {
+            Arc::new(CDefaultTransactionProcessor::new(conn_pool.clone(), publisher))
         }
-        Processor::TokenProcessor => Arc::new(TokenTransactionProcessor::new(
+        CProcessor::TokenProcessor => Arc::new(CTokenTransactionProcessor::new(
             conn_pool.clone(),
             config.ans_contract_address,
+            publisher,
         )),
-        Processor::CoinProcessor => Arc::new(CoinTransactionProcessor::new(conn_pool.clone())),
-        Processor::StakeProcessor => Arc::new(StakeTransactionProcessor::new(conn_pool.clone())),
-        Processor::CustomProcessor => {
-            Arc::new(CustomTransactionProcessor::new(conn_pool.clone(), publisher))
-        }
+        CProcessor::CoinProcessor => Arc::new(CCoinTransactionProcessor::new(conn_pool.clone(), publisher)),
+        CProcessor::StakeProcessor => Arc::new(CStakeTransactionProcessor::new(conn_pool.clone()))
     };
 
     let options =
