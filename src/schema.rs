@@ -1,6 +1,3 @@
-// Copyright © Aptos Foundation
-// SPDX-License-Identifier: Apache-2.0
-
 // @generated automatically by Diesel CLI.
 
 diesel::table! {
@@ -34,7 +31,6 @@ diesel::table! {
         block_height -> Int8,
         transaction_timestamp -> Timestamp,
         inserted_at -> Timestamp,
-        event_index -> Nullable<Int8>,
     }
 }
 
@@ -150,19 +146,6 @@ diesel::table! {
 }
 
 diesel::table! {
-    current_table_items (table_handle, key_hash) {
-        table_handle -> Varchar,
-        key_hash -> Varchar,
-        key -> Text,
-        decoded_key -> Jsonb,
-        decoded_value -> Nullable<Jsonb>,
-        is_deleted -> Bool,
-        last_transaction_version -> Int8,
-        inserted_at -> Timestamp,
-    }
-}
-
-diesel::table! {
     current_token_datas (token_data_id_hash) {
         token_data_id_hash -> Varchar,
         creator_address -> Varchar,
@@ -236,7 +219,6 @@ diesel::table! {
         type_ -> Text,
         data -> Jsonb,
         inserted_at -> Timestamp,
-        event_index -> Nullable<Int8>,
     }
 }
 
@@ -379,7 +361,6 @@ diesel::table! {
         coin_amount -> Nullable<Numeric>,
         inserted_at -> Timestamp,
         transaction_timestamp -> Timestamp,
-        event_index -> Nullable<Int8>,
     }
 }
 
@@ -506,7 +487,6 @@ diesel::allow_tables_to_appear_in_same_query!(
     current_coin_balances,
     current_collection_datas,
     current_staking_pool_voter,
-    current_table_items,
     current_token_datas,
     current_token_ownerships,
     current_token_pending_claims,

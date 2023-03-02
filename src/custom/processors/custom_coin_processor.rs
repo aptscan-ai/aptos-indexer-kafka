@@ -1,4 +1,4 @@
-// Copyright © Aptos Foundation
+// Copyright (c) Aptos
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{
@@ -26,7 +26,6 @@ use std::{collections::HashMap, fmt::Debug};
 use crate::custom::driver::publisher::Publisher;
 
 pub const NAME: &str = "custom_coin_processor";
-
 pub struct CCoinTransactionProcessor {
     connection_pool: PgDbPool,
     publisher: Publisher,
@@ -36,7 +35,7 @@ impl CCoinTransactionProcessor {
     pub fn new(connection_pool: PgDbPool, publisher: Publisher) -> Self {
         Self {
             connection_pool,
-            publisher,
+            publisher
         }
     }
 }
@@ -61,11 +60,8 @@ fn insert_to_db_impl(
     current_coin_balances: &[CurrentCoinBalance],
     coin_supply: &[CoinSupply],
 ) -> Result<(), diesel::result::Error> {
-    // store coin info in db
-    insert_coin_infos(conn, coin_infos)?;
-
-    // the others send to kafka
     insert_coin_activities(publisher, coin_activities)?;
+    insert_coin_infos(conn, coin_infos)?;
     insert_coin_balances(publisher, coin_balances)?;
     insert_current_coin_balances(publisher, current_coin_balances)?;
     insert_coin_supply(publisher, coin_supply)?;

@@ -1,4 +1,4 @@
-// Copyright © Aptos Foundation
+// Copyright (c) Aptos
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{
@@ -132,11 +132,7 @@ fn insert_coin_activities(
                     event_creation_number,
                     event_sequence_number,
                 ))
-                .do_update()
-                .set((
-                    inserted_at.eq(excluded(inserted_at)),
-                    event_index.eq(excluded(event_index)),
-                )),
+                .do_nothing(),
             None,
         )?;
     }

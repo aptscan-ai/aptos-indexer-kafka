@@ -1,4 +1,4 @@
-// Copyright © Aptos Foundation
+// Copyright (c) Aptos
 // SPDX-License-Identifier: Apache-2.0
 #![allow(clippy::extra_unused_lifetimes)]
 use crate::{indexer::errors::TransactionProcessingError, schema::processor_statuses};
@@ -20,7 +20,7 @@ impl ProcessorStatus {
     pub fn new(name: &'static str, version: i64, success: bool, details: Option<String>) -> Self {
         Self {
             name,
-            version,
+            version: version as i64,
             success,
             details,
             last_updated: chrono::Utc::now().naive_utc(),

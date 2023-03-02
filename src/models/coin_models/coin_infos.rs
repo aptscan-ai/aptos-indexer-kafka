@@ -1,4 +1,4 @@
-// Copyright © Aptos Foundation
+// Copyright (c) Aptos
 // SPDX-License-Identifier: Apache-2.0
 
 // This is required because a diesel macro makes clippy sad
@@ -75,7 +75,7 @@ impl CoinInfo {
                     supply_aggregator_table_handle,
                     supply_aggregator_table_key,
                 }))
-            },
+            }
             _ => Ok(None),
         }
     }

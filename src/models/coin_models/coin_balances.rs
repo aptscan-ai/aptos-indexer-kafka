@@ -1,4 +1,4 @@
-// Copyright © Aptos Foundation
+// Copyright (c) Aptos
 // SPDX-License-Identifier: Apache-2.0
 
 // This is required because a diesel macro makes clippy sad
@@ -9,10 +9,7 @@ use super::{
     coin_activities::EventToCoinType,
     coin_utils::{CoinInfoType, CoinResource},
 };
-use crate::{
-    schema::{coin_balances, current_coin_balances},
-    util::standardize_address,
-};
+use crate::{schema::coin_balances, schema::current_coin_balances, util::standardize_address};
 use aptos_api_types::WriteResource as APIWriteResource;
 use bigdecimal::BigDecimal;
 use field_count::FieldCount;
@@ -89,7 +86,7 @@ impl CoinBalance {
                     current_coin_balance,
                     event_to_coin_mapping,
                 )))
-            },
+            }
             _ => Ok(None),
         }
     }

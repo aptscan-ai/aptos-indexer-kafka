@@ -1,12 +1,14 @@
-// Copyright © Aptos Foundation
+// Copyright (c) Aptos
 // SPDX-License-Identifier: Apache-2.0
 
+use crate::counters::LATEST_PROCESSED_VERSION;
+use crate::database::get_chunks;
 use crate::{
     counters::{
-        GOT_CONNECTION, LATEST_PROCESSED_VERSION, PROCESSOR_ERRORS, PROCESSOR_INVOCATIONS,
-        PROCESSOR_SUCCESSES, UNABLE_TO_GET_CONNECTION,
+        GOT_CONNECTION, PROCESSOR_ERRORS, PROCESSOR_INVOCATIONS, PROCESSOR_SUCCESSES,
+        UNABLE_TO_GET_CONNECTION,
     },
-    database::{execute_with_better_error, get_chunks, PgDbPool, PgPoolConnection},
+    database::{execute_with_better_error, PgDbPool, PgPoolConnection},
     indexer::{errors::TransactionProcessingError, processing_result::ProcessingResult},
     models::processor_statuses::ProcessorStatusModel,
     schema,
@@ -49,7 +51,7 @@ pub trait TransactionProcessor: Send + Sync + Debug {
                 Ok(conn) => {
                     GOT_CONNECTION.inc();
                     return conn;
-                },
+                }
                 Err(err) => {
                     UNABLE_TO_GET_CONNECTION.inc();
                     aptos_logger::error!(
@@ -57,7 +59,7 @@ pub trait TransactionProcessor: Send + Sync + Debug {
                         pool.connection_timeout(),
                         err
                     );
-                },
+                }
             };
         }
     }

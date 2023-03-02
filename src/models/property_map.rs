@@ -1,10 +1,12 @@
-// Copyright © Aptos Foundation
+// Copyright (c) Aptos
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::util;
 use serde::{Deserialize, Serialize};
-use serde_json::{Result, Value};
+use serde_json::Result;
+use serde_json::Value;
 use std::collections::HashMap;
+
+use crate::util;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PropertyValue {

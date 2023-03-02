@@ -2,8 +2,6 @@ use std::collections::HashMap;
 use serde::Serialize;
 
 use {
-    crate::*,
-    models::transactions::TransactionModel,
     rdkafka::{
         producer::{BaseRecord, DefaultProducerContext, ThreadedProducer},
     },
@@ -36,6 +34,7 @@ impl Publisher {
                 ("MoveResource", "move_resource_topic"),
                 ("TableItem", "table_item_topic"),
                 ("CurrentTableItem", "current_table_item_topic"),
+                ("MoveModule", "move_module_topic"),
                 // coin
                 ("CoinActivity", "coin_activity_topic"),
                 ("CoinBalance", "coin_balance_topic"),
@@ -43,7 +42,7 @@ impl Publisher {
                 ("CoinSupply", "coin_supply_topic"),
                 // token
                 ("TokenActivity", "token_activity_topic"),
-            ])
+            ]),
         }
     }
 

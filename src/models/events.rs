@@ -1,11 +1,12 @@
-// Copyright © Aptos Foundation
+// Copyright (c) Aptos
 // SPDX-License-Identifier: Apache-2.0
 #![allow(clippy::extra_unused_lifetimes)]
-use super::transactions::TransactionQuery;
 use crate::{models::transactions::Transaction, schema::events, util::standardize_address};
 use aptos_api_types::Event as APIEvent;
 use field_count::FieldCount;
 use serde::{Deserialize, Serialize};
+
+use super::transactions::TransactionQuery;
 
 #[derive(Associations, Debug, Deserialize, FieldCount, Identifiable, Insertable, Serialize)]
 #[diesel(belongs_to(Transaction, foreign_key = transaction_version))]
@@ -19,7 +20,6 @@ pub struct Event {
     pub transaction_block_height: i64,
     pub type_: String,
     pub data: serde_json::Value,
-    pub event_index: Option<i64>,
 }
 
 /// Need a separate struct for queryable because we don't want to define the inserted_at column (letting DB fill)
@@ -36,7 +36,6 @@ pub struct EventQuery {
     pub type_: String,
     pub data: serde_json::Value,
     pub inserted_at: chrono::NaiveDateTime,
-    pub event_index: Option<i64>,
 }
 
 impl Event {
@@ -44,7 +43,6 @@ impl Event {
         event: &APIEvent,
         transaction_version: i64,
         transaction_block_height: i64,
-        event_index: i64,
     ) -> Self {
         Event {
             account_address: standardize_address(&event.guid.account_address.to_string()),
@@ -54,7 +52,6 @@ impl Event {
             transaction_block_height,
             type_: event.typ.to_string(),
             data: event.data.clone(),
-            event_index: Some(event_index),
         }
     }
 
@@ -65,15 +62,7 @@ impl Event {
     ) -> Vec<Self> {
         events
             .iter()
-            .enumerate()
-            .map(|(index, event)| {
-                Self::from_event(
-                    event,
-                    transaction_version,
-                    transaction_block_height,
-                    index as i64,
-                )
-            })
+            .map(|event| Self::from_event(event, transaction_version, transaction_block_height))
             .collect::<Vec<EventModel>>()
     }
 }

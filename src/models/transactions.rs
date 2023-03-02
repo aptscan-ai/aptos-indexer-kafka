@@ -1,9 +1,23 @@
-// Copyright © Aptos Foundation
+// Copyright (c) Aptos
 // SPDX-License-Identifier: Apache-2.0
 
 // This is required because a diesel macro makes clippy sad
 #![allow(clippy::extra_unused_lifetimes)]
 #![allow(clippy::unused_unit)]
+
+use crate::{
+    schema::{block_metadata_transactions, transactions, user_transactions},
+    util::u64_to_bigdecimal,
+};
+use field_count::FieldCount;
+use serde::{Deserialize, Serialize};
+
+use crate::database::PgPoolConnection;
+use aptos_api_types::{Transaction as APITransaction, TransactionInfo};
+use bigdecimal::BigDecimal;
+use diesel::{
+    BelongingToDsl, ExpressionMethods, GroupedBy, OptionalExtension, QueryDsl, RunQueryDsl,
+};
 
 use super::{
     block_metadata_transactions::{BlockMetadataTransaction, BlockMetadataTransactionQuery},
@@ -12,18 +26,6 @@ use super::{
     user_transactions::{UserTransaction, UserTransactionQuery},
     write_set_changes::{WriteSetChangeDetail, WriteSetChangeModel, WriteSetChangeQuery},
 };
-use crate::{
-    database::PgPoolConnection,
-    schema::{block_metadata_transactions, transactions, user_transactions},
-    util::u64_to_bigdecimal,
-};
-use aptos_api_types::{Transaction as APITransaction, TransactionInfo};
-use bigdecimal::BigDecimal;
-use diesel::{
-    BelongingToDsl, ExpressionMethods, GroupedBy, OptionalExtension, QueryDsl, RunQueryDsl,
-};
-use field_count::FieldCount;
-use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize, FieldCount, Identifiable, Insertable, Serialize)]
 #[diesel(primary_key(version))]
@@ -143,7 +145,7 @@ impl Transaction {
                     wsc,
                     wsc_detail,
                 )
-            },
+            }
             APITransaction::GenesisTransaction(genesis_txn) => {
                 let (wsc, wsc_detail) = WriteSetChangeModel::from_write_set_changes(
                     &genesis_txn.info.changes,
@@ -171,7 +173,7 @@ impl Transaction {
                     wsc,
                     wsc_detail,
                 )
-            },
+            }
             APITransaction::BlockMetadataTransaction(block_metadata_txn) => {
                 let (wsc, wsc_detail) = WriteSetChangeModel::from_write_set_changes(
                     &block_metadata_txn.info.changes,
@@ -201,7 +203,7 @@ impl Transaction {
                     wsc,
                     wsc_detail,
                 )
-            },
+            }
             APITransaction::StateCheckpointTransaction(state_checkpoint_txn) => (
                 Self::from_transaction_info(
                     &state_checkpoint_txn.info,
@@ -218,7 +220,7 @@ impl Transaction {
             ),
             APITransaction::PendingTransaction(..) => {
                 unreachable!()
-            },
+            }
         }
     }
 
@@ -269,7 +271,7 @@ impl TransactionQuery {
         let mut txs = transactions::table
             .filter(transactions::version.ge(start_version as i64))
             .order(transactions::version.asc())
-            .limit(number_to_get)
+            .limit(number_to_get as i64)
             .load::<Self>(conn)?;
 
         let mut user_transactions: Vec<Vec<UserTransactionQuery>> =
@@ -384,15 +386,15 @@ impl TransactionQuery {
                     .filter(user_transactions::version.eq(&self.version))
                     .first::<UserTransactionQuery>(conn)
                     .optional()?;
-            },
+            }
             "block_metadata_transaction" => {
                 block_metadata_transaction = block_metadata_transactions::table
                     .filter(block_metadata_transactions::version.eq(&self.version))
                     .first::<BlockMetadataTransactionQuery>(conn)
                     .optional()?;
-            },
-            "genesis_transaction" => {},
-            "state_checkpoint_transaction" => {},
+            }
+            "genesis_transaction" => {}
+            "state_checkpoint_transaction" => {}
             _ => unreachable!("Unknown transaction type: {}", &self.type_),
         };
         Ok((
