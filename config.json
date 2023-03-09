@@ -2,23 +2,12 @@
   "kafka": {
     "bootstrap.servers": "localhost:9092",
     "security.protocol": "PLAINTEXT",
-    "queue.buffering.max.messages": "100000"
+    "queue.buffering.max.messages": "100000",
+    "message.max.bytes": "100000000"
   },
   "topics": {
-    "transaction_topic": "transaction.topic",
-    "user_transaction_topic": "user.transaction.topic",
-    "signature_topic": "signature.topic",
-    "block_metadata_transaction_topic": "block.metadata.transaction.topic",
-    "event_topic": "event.topic",
-    "write_set_change_topic": "write.set.change.topic",
-    "move_resource_topic": "move.resource.topic",
-    "table_item_topic": "table.item.topic",
-    "current_table_item_topic": "current.table.item.topic",
-    "move_module_topic": "move.module.topic",
-    "coin_activity_topic": "coin.activity.topic",
-    "coin_balance_topic": "coin.balance.topic",
-    "current_coin_balance_topic": "current.coin.balance.topic",
-    "coin_supply_topic": "coin.supply.topic",
-    "token_activity_topic": "token.activity.topic"
+    "transaction_topic": "apscan.indexer.transaction",
+    "coin_info_topic": "apscan.indexer.coin.info",
+    "token_data_topic": "apscan.indexer.token.data"
   }
 }

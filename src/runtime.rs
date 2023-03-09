@@ -105,10 +105,9 @@ pub fn bootstrap(
 
     // custom
     indexer_config.processor = Option::from(String::from("custom_default_processor"));
-    let processors: [Option<String>; 3] = [
+    let processors: [Option<String>; 2] = [
         Option::from(String::from("custom_coin_processor")),
-        Option::from(String::from("custom_token_processor")),
-        Option::from(String::from("custom_stake_processor"))
+        Option::from(String::from("custom_token_processor"))
     ];
     let n = processors.len();
 

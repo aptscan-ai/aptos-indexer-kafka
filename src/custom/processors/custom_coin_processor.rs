@@ -60,11 +60,11 @@ fn insert_to_db_impl(
     current_coin_balances: &[CurrentCoinBalance],
     coin_supply: &[CoinSupply],
 ) -> Result<(), diesel::result::Error> {
-    insert_coin_activities(publisher, coin_activities)?;
-    insert_coin_infos(conn, coin_infos)?;
-    insert_coin_balances(publisher, coin_balances)?;
-    insert_current_coin_balances(publisher, current_coin_balances)?;
-    insert_coin_supply(publisher, coin_supply)?;
+    // insert_coin_activities(publisher, coin_activities)?;
+    insert_coin_infos(publisher, coin_infos)?;
+    // insert_coin_balances(publisher, coin_balances)?;
+    // insert_current_coin_balances(publisher, current_coin_balances)?;
+    // insert_coin_supply(publisher, coin_supply)?;
     Ok(())
 }
 
@@ -132,33 +132,10 @@ fn insert_coin_activities(
 }
 
 fn insert_coin_infos(
-    conn: &mut PgConnection,
+    publisher: &Publisher,
     item_to_insert: &[CoinInfo],
 ) -> Result<(), diesel::result::Error> {
-    use schema::coin_infos::dsl::*;
-
-    let chunks = get_chunks(item_to_insert.len(), CoinInfo::field_count());
-    for (start_ind, end_ind) in chunks {
-        execute_with_better_error(
-            conn,
-            diesel::insert_into(schema::coin_infos::table)
-                .values(&item_to_insert[start_ind..end_ind])
-                .on_conflict(coin_type_hash)
-                .do_update()
-                .set((
-                    transaction_version_created.eq(excluded(transaction_version_created)),
-                    creator_address.eq(excluded(creator_address)),
-                    name.eq(excluded(name)),
-                    symbol.eq(excluded(symbol)),
-                    decimals.eq(excluded(decimals)),
-                    transaction_created_timestamp.eq(excluded(transaction_created_timestamp)),
-                    supply_aggregator_table_handle.eq(excluded(supply_aggregator_table_handle)),
-                    supply_aggregator_table_key.eq(excluded(supply_aggregator_table_key)),
-                    inserted_at.eq(excluded(inserted_at)),
-                )),
-            Some(" WHERE coin_infos.transaction_version_created >= EXCLUDED.transaction_version_created "),
-        )?;
-    }
+    publisher.send("CoinInfo", item_to_insert);
     Ok(())
 }
 

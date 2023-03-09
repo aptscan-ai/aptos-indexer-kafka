@@ -24,24 +24,9 @@ impl Publisher {
             producer: Producer::new(conf_map.kafka).create(),
             topics: conf_map.topics,
             model_to_topic: HashMap::from([
-                // transaction
                 ("TransactionModel", "transaction_topic"),
-                ("UserTransactionModel", "user_transaction_topic"),
-                ("Signature", "signature_topic"),
-                ("BlockMetadataTransactionModel", "block_metadata_transaction_topic"),
-                ("EventModel", "event_topic"),
-                ("WriteSetChangeModel", "write_set_change_topic"),
-                ("MoveResource", "move_resource_topic"),
-                ("TableItem", "table_item_topic"),
-                ("CurrentTableItem", "current_table_item_topic"),
-                ("MoveModule", "move_module_topic"),
-                // coin
-                ("CoinActivity", "coin_activity_topic"),
-                ("CoinBalance", "coin_balance_topic"),
-                ("CurrentCoinBalance", "current_coin_balance_topic"),
-                ("CoinSupply", "coin_supply_topic"),
-                // token
-                ("TokenActivity", "token_activity_topic"),
+                ("CoinInfo", "coin_info_topic"),
+                ("TokenData", "token_data_topic"),
             ]),
         }
     }
@@ -51,6 +36,7 @@ impl Publisher {
         let topic = self.get_topic(model);
         for i in 0..n {
             let serialized_obj = serde_json::to_string(&list_objects[i]).unwrap();
+            // println!("kafka send message: {}", serialized_obj);
             self.producer.send(BaseRecord::<Vec<u8>, _>::to(&topic).payload(serialized_obj.as_bytes())).expect("Failed to send message");
         }
     }

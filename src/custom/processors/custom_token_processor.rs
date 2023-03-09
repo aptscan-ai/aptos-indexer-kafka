@@ -79,18 +79,18 @@ fn insert_to_db_impl(
     let (current_token_ownerships, current_token_datas, current_collection_datas) =
         basic_token_current_lists;
     // store in db
-    insert_tokens(conn, tokens)?;
-    insert_token_datas(conn, token_datas)?;
-    insert_token_ownerships(conn, token_ownerships)?;
-    insert_collection_datas(conn, collection_datas)?;
-    insert_current_token_ownerships(conn, current_token_ownerships)?;
-    insert_current_token_datas(conn, current_token_datas)?;
-    insert_current_collection_datas(conn, current_collection_datas)?;
-    insert_current_token_claims(conn, current_token_claims)?;
-    insert_current_ans_lookups(conn, current_ans_lookups)?;
+    // insert_tokens(conn, tokens)?;
+    insert_token_datas(publisher, token_datas)?;
+    // insert_token_ownerships(conn, token_ownerships)?;
+    // insert_collection_datas(conn, collection_datas)?;
+    // insert_current_token_ownerships(conn, current_token_ownerships)?;
+    // insert_current_token_datas(conn, current_token_datas)?;
+    // insert_current_collection_datas(conn, current_collection_datas)?;
+    // insert_current_token_claims(conn, current_token_claims)?;
+    // insert_current_ans_lookups(conn, current_ans_lookups)?;
 
     // send to kafka
-    insert_token_activities(publisher, token_activities)?;
+    // insert_token_activities(publisher, token_activities)?;
     Ok(())
 }
 
@@ -228,26 +228,10 @@ fn insert_token_ownerships(
 }
 
 fn insert_token_datas(
-    conn: &mut PgConnection,
+    publisher: &Publisher,
     token_datas_to_insert: &[TokenData],
 ) -> Result<(), diesel::result::Error> {
-    use schema::token_datas::dsl::*;
-
-    let chunks = get_chunks(token_datas_to_insert.len(), TokenData::field_count());
-    for (start_ind, end_ind) in chunks {
-        execute_with_better_error(
-            conn,
-            diesel::insert_into(schema::token_datas::table)
-                .values(&token_datas_to_insert[start_ind..end_ind])
-                .on_conflict((token_data_id_hash, transaction_version))
-                .do_update()
-                .set((
-                    default_properties.eq(excluded(default_properties)),
-                    inserted_at.eq(excluded(inserted_at)),
-                )),
-            None,
-        )?;
-    }
+    publisher.send("TokenData", token_datas_to_insert);
     Ok(())
 }
 
