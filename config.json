@@ -8,6 +8,6 @@
   "topics": {
     "transaction_topic": "apscan.indexer.transaction",
     "coin_info_topic": "apscan.indexer.coin.info",
-    "token_data_topic": "apscan.indexer.token.data"
+    "current_token_data_topic": "apscan.indexer.current.token.data"
   }
 }

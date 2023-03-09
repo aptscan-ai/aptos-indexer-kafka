@@ -26,7 +26,7 @@ impl Publisher {
             model_to_topic: HashMap::from([
                 ("TransactionModel", "transaction_topic"),
                 ("CoinInfo", "coin_info_topic"),
-                ("TokenData", "token_data_topic"),
+                ("CurrentTokenData", "current_token_data_topic"),
             ]),
         }
     }
