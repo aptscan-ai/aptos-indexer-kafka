@@ -105,24 +105,24 @@ pub fn bootstrap(
 
     // custom
     indexer_config.processor = Option::from(String::from("custom_default_processor"));
-    let processors: [Option<String>; 2] = [
-        Option::from(String::from("custom_coin_processor")),
-        Option::from(String::from("custom_token_processor"))
-    ];
-    let n = processors.len();
+    // let processors: [Option<String>; 2] = [
+    //     Option::from(String::from("custom_coin_processor")),
+    //     Option::from(String::from("custom_token_processor"))
+    // ];
+    // let n = processors.len();
 
-    for i in 0..n {
-        let mut new_indexer_config = config.indexer.clone();
-        new_indexer_config.processor = processors[i].clone();
-        let new_db = db.clone();
-        let new_mp_sender = mp_sender.clone();
-        let new_node_config = node_config.clone();
-
-        runtime.spawn(async move {
-            let context = Arc::new(Context::new(chain_id, new_db, new_mp_sender, new_node_config));
-            run_forever(new_indexer_config, context).await;
-        });
-    }
+    // for i in 0..n {
+    //     let mut new_indexer_config = config.indexer.clone();
+    //     new_indexer_config.processor = processors[i].clone();
+    //     let new_db = db.clone();
+    //     let new_mp_sender = mp_sender.clone();
+    //     let new_node_config = node_config.clone();
+    //
+    //     runtime.spawn(async move {
+    //         let context = Arc::new(Context::new(chain_id, new_db, new_mp_sender, new_node_config));
+    //         run_forever(new_indexer_config, context).await;
+    //     });
+    // }
 
     runtime.spawn(async move {
         let context = Arc::new(Context::new(chain_id, db, mp_sender, node_config));
