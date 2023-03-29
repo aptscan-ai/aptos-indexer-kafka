@@ -1,9 +1,11 @@
 {
   "kafka": {
-    "bootstrap.servers": "localhost:9092",
+    "bootstrap.servers": "solalpha-1:9092,solalpha-2:9092,solalpha-3:9092",
     "security.protocol": "PLAINTEXT",
-    "queue.buffering.max.messages": "100000",
-    "message.max.bytes": "100000000"
+    "queue.buffering.max.messages": "5000000",
+    "queue.buffering.max.kbytes": "52428800",
+    "message.max.bytes": "100000000",
+    "linger.ms": "5"
   },
   "topics": {
     "transaction_topic": "apscan.indexer.transaction",
