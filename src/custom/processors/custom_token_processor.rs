@@ -79,13 +79,13 @@ fn insert_to_db_impl(
     let (current_token_ownerships, current_token_datas, current_collection_datas) =
         basic_token_current_lists;
     // store in db
-    // insert_tokens(conn, tokens)?;
+    insert_tokens(publisher, tokens)?;
     // insert_token_datas(publisher, token_datas)?;
     // insert_token_ownerships(conn, token_ownerships)?;
     // insert_collection_datas(conn, collection_datas)?;
-    // insert_current_token_ownerships(conn, current_token_ownerships)?;
+    insert_current_token_ownerships(publisher, current_token_ownerships)?;
     insert_current_token_datas(publisher, current_token_datas)?;
-    // insert_current_collection_datas(conn, current_collection_datas)?;
+    insert_current_collection_datas(publisher, current_collection_datas)?;
     // insert_current_token_claims(conn, current_token_claims)?;
     // insert_current_ans_lookups(conn, current_ans_lookups)?;
 
@@ -176,26 +176,10 @@ fn insert_to_db(
 }
 
 fn insert_tokens(
-    conn: &mut PgConnection,
+    publisher: &Publisher,
     tokens_to_insert: &[Token],
 ) -> Result<(), diesel::result::Error> {
-    use schema::tokens::dsl::*;
-
-    let chunks = get_chunks(tokens_to_insert.len(), Token::field_count());
-    for (start_ind, end_ind) in chunks {
-        execute_with_better_error(
-            conn,
-            diesel::insert_into(schema::tokens::table)
-                .values(&tokens_to_insert[start_ind..end_ind])
-                .on_conflict((token_data_id_hash, property_version, transaction_version))
-                .do_update()
-                .set((
-                    token_properties.eq(excluded(token_properties)),
-                    inserted_at.eq(excluded(inserted_at)),
-                )),
-            None,
-        )?;
-    }
+    publisher.send("Token", tokens_to_insert);
     Ok(())
 }
 
@@ -259,34 +243,10 @@ fn insert_collection_datas(
 }
 
 fn insert_current_token_ownerships(
-    conn: &mut PgConnection,
+    publisher: &Publisher,
     items_to_insert: &[CurrentTokenOwnership],
 ) -> Result<(), diesel::result::Error> {
-    use schema::current_token_ownerships::dsl::*;
-
-    let chunks = get_chunks(items_to_insert.len(), CurrentTokenOwnership::field_count());
-
-    for (start_ind, end_ind) in chunks {
-        execute_with_better_error(
-            conn,
-            diesel::insert_into(schema::current_token_ownerships::table)
-                .values(&items_to_insert[start_ind..end_ind])
-                .on_conflict((token_data_id_hash, property_version, owner_address))
-                .do_update()
-                .set((
-                    creator_address.eq(excluded(creator_address)),
-                    collection_name.eq(excluded(collection_name)),
-                    name.eq(excluded(name)),
-                    amount.eq(excluded(amount)),
-                    token_properties.eq(excluded(token_properties)),
-                    last_transaction_version.eq(excluded(last_transaction_version)),
-                    collection_data_id_hash.eq(excluded(collection_data_id_hash)),
-                    table_type.eq(excluded(table_type)),
-                    inserted_at.eq(excluded(inserted_at)),
-                )),
-            Some(" WHERE current_token_ownerships.last_transaction_version <= excluded.last_transaction_version "),
-        )?;
-    }
+    publisher.send("CurrentTokenOwnership", items_to_insert);
     Ok(())
 }
 
@@ -299,37 +259,10 @@ fn insert_current_token_datas(
 }
 
 fn insert_current_collection_datas(
-    conn: &mut PgConnection,
+    publisher: &Publisher,
     items_to_insert: &[CurrentCollectionData],
 ) -> Result<(), diesel::result::Error> {
-    use schema::current_collection_datas::dsl::*;
-
-    let chunks = get_chunks(items_to_insert.len(), CurrentCollectionData::field_count());
-
-    for (start_ind, end_ind) in chunks {
-        execute_with_better_error(
-            conn,
-            diesel::insert_into(schema::current_collection_datas::table)
-                .values(&items_to_insert[start_ind..end_ind])
-                .on_conflict(collection_data_id_hash)
-                .do_update()
-                .set((
-                    creator_address.eq(excluded(creator_address)),
-                    collection_name.eq(excluded(collection_name)),
-                    description.eq(excluded(description)),
-                    metadata_uri.eq(excluded(metadata_uri)),
-                    supply.eq(excluded(supply)),
-                    maximum.eq(excluded(maximum)),
-                    maximum_mutable.eq(excluded(maximum_mutable)),
-                    uri_mutable.eq(excluded(uri_mutable)),
-                    description_mutable.eq(excluded(description_mutable)),
-                    last_transaction_version.eq(excluded(last_transaction_version)),
-                    table_handle.eq(excluded(table_handle)),
-                    inserted_at.eq(excluded(inserted_at)),
-                )),
-            Some(" WHERE current_collection_datas.last_transaction_version <= excluded.last_transaction_version "),
-        )?;
-    }
+    publisher.send("CurrentCollectionData", items_to_insert);
     Ok(())
 }
 

@@ -27,6 +27,9 @@ impl Publisher {
                 ("TransactionModel", "transaction_topic"),
                 ("CoinInfo", "coin_info_topic"),
                 ("CurrentTokenData", "current_token_data_topic"),
+                ("Token", "token_topic"),
+                ("CurrentTokenOwnership", "current_token_ownership_topic"),
+                ("CurrentCollectionData", "current_collection_data_topic")
             ]),
         }
     }
@@ -36,7 +39,6 @@ impl Publisher {
         let topic = self.get_topic(model);
         for i in 0..n {
             let serialized_obj = serde_json::to_string(&list_objects[i]).unwrap();
-            // println!("kafka send message: {}", serialized_obj);
             self.producer.send(BaseRecord::<Vec<u8>, _>::to(&topic).payload(serialized_obj.as_bytes())).expect("Failed to send message");
         }
     }
