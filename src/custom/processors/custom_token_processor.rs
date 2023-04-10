@@ -90,7 +90,7 @@ fn insert_to_db_impl(
     // insert_current_ans_lookups(conn, current_ans_lookups)?;
 
     // send to kafka
-    // insert_token_activities(publisher, token_activities)?;
+    insert_token_activities(publisher, token_activities)?;
     Ok(())
 }
 

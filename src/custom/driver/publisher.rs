@@ -29,7 +29,8 @@ impl Publisher {
                 ("CurrentTokenData", "current_token_data_topic"),
                 ("Token", "token_topic"),
                 ("CurrentTokenOwnership", "current_token_ownership_topic"),
-                ("CurrentCollectionData", "current_collection_data_topic")
+                ("CurrentCollectionData", "current_collection_data_topic"),
+                ("TokenActivity", "token_activity_topic")
             ]),
         }
     }

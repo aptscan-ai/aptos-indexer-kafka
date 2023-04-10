@@ -13,6 +13,7 @@
     "current_token_data_topic": "apscan.indexer.current.token.data",
     "token_topic": "apscan.indexer.token",
     "current_token_ownership_topic": "apscan.indexer.current.token.ownership",
-    "current_collection_data_topic": "apscan.indexer.current.collection.data"
+    "current_collection_data_topic": "apscan.indexer.current.collection.data",
+    "token_activity_topic": "apscan.indexer.token.activity"
   }
 }
