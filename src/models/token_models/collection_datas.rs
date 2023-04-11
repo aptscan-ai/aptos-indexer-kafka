@@ -1,4 +1,4 @@
-// Copyright (c) Aptos
+// Copyright © Aptos Foundation
 // SPDX-License-Identifier: Apache-2.0
 
 // This is required because a diesel macro makes clippy sad
@@ -107,7 +107,10 @@ impl CollectionData {
                 .map(|table_metadata| table_metadata.owner_address.clone());
             let mut creator_address = match maybe_creator_address {
                 Some(ca) => ca,
-                None => String::from("0x0"),
+                None => Self::get_collection_creator(conn, &table_handle).context(format!(
+                    "Failed to get collection creator for table handle {}, txn version {}",
+                    table_handle, txn_version
+                ))?,
             };
             creator_address = standardize_address(&creator_address);
             let collection_data_id =
@@ -167,7 +170,7 @@ impl CollectionData {
                 Ok(current_collection_data) => return Ok(current_collection_data.creator_address),
                 Err(_) => {
                     std::thread::sleep(std::time::Duration::from_millis(QUERY_RETRY_DELAY_MS));
-                }
+                },
             }
         }
         Err(anyhow::anyhow!("Failed to get collection creator"))

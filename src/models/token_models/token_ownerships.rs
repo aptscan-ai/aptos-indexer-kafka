@@ -1,4 +1,4 @@
-// Copyright (c) Aptos
+// Copyright © Aptos Foundation
 // SPDX-License-Identifier: Apache-2.0
 
 // This is required because a diesel macro makes clippy sad
@@ -112,14 +112,14 @@ impl TokenOwnership {
                 Some(tm.table_type.clone()),
             ),
             None => {
-                // aptos_logger::warn!(
-                //     transaction_version = txn_version,
-                //     table_handle = table_handle,
-                //     "Missing table handle metadata for TokenStore. {:?}",
-                //     table_handle_to_owner
-                // );
+                aptos_logger::warn!(
+                    transaction_version = txn_version,
+                    table_handle = table_handle,
+                    "Missing table handle metadata for TokenStore. {:?}",
+                    table_handle_to_owner
+                );
                 (None, None, None)
-            }
+            },
         };
 
         Ok(Some((
