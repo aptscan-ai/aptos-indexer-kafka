@@ -107,10 +107,7 @@ impl CollectionData {
                 .map(|table_metadata| table_metadata.owner_address.clone());
             let mut creator_address = match maybe_creator_address {
                 Some(ca) => ca,
-                None => Self::get_collection_creator(conn, &table_handle).context(format!(
-                    "Failed to get collection creator for table handle {}, txn version {}",
-                    table_handle, txn_version
-                ))?,
+                None => String::from("0x0"),
             };
             creator_address = standardize_address(&creator_address);
             let collection_data_id =
