@@ -12,6 +12,7 @@ use crate::{
     models::token_models::{
         ans_lookup::{CurrentAnsLookup, CurrentAnsLookupPK},
         collection_datas::{CollectionData, CurrentCollectionData},
+        nft_points::NftPoints,
         token_activities::TokenActivity,
         token_claims::CurrentTokenPendingClaim,
         token_datas::{CurrentTokenData, TokenData},
@@ -31,14 +32,21 @@ use std::{collections::HashMap, fmt::Debug};
 use crate::custom::driver::publisher::Publisher;
 
 pub const NAME: &str = "custom_token_processor";
+
 pub struct CTokenTransactionProcessor {
     connection_pool: PgDbPool,
     ans_contract_address: Option<String>,
+    nft_points_contract: Option<String>,
     publisher: Publisher,
 }
 
 impl CTokenTransactionProcessor {
-    pub fn new(connection_pool: PgDbPool, ans_contract_address: Option<String>, publisher: Publisher,) -> Self {
+    pub fn new(
+        connection_pool: PgDbPool,
+        ans_contract_address: Option<String>,
+        nft_points_contract: Option<String>,
+        publisher: Publisher
+    ) -> Self {
         aptos_logger::info!(
             ans_contract_address = ans_contract_address,
             "init TokenTransactionProcessor"
@@ -46,7 +54,8 @@ impl CTokenTransactionProcessor {
         Self {
             connection_pool,
             ans_contract_address,
-            publisher
+            nft_points_contract,
+            publisher,
         }
     }
 }
@@ -74,23 +83,26 @@ fn insert_to_db_impl(
     token_activities: &[TokenActivity],
     current_token_claims: &[CurrentTokenPendingClaim],
     current_ans_lookups: &[CurrentAnsLookup],
+    nft_points: &[NftPoints],
 ) -> Result<(), diesel::result::Error> {
     let (tokens, token_ownerships, token_datas, collection_datas) = basic_token_transaction_lists;
     let (current_token_ownerships, current_token_datas, current_collection_datas) =
         basic_token_current_lists;
     // store in db
-    insert_tokens(publisher, tokens)?;
     // insert_token_datas(publisher, token_datas)?;
     // insert_token_ownerships(conn, token_ownerships)?;
     // insert_collection_datas(conn, collection_datas)?;
-    insert_current_token_ownerships(publisher, current_token_ownerships)?;
-    insert_current_token_datas(publisher, current_token_datas)?;
-    insert_current_collection_datas(publisher, current_collection_datas)?;
     // insert_current_token_claims(conn, current_token_claims)?;
     // insert_current_ans_lookups(conn, current_ans_lookups)?;
+    // insert_nft_points(conn, nft_points)?;
 
     // send to kafka
     insert_token_activities(publisher, token_activities)?;
+    insert_current_token_ownerships(publisher, current_token_ownerships)?;
+    insert_current_token_datas(publisher, current_token_datas)?;
+    insert_current_collection_datas(publisher, current_collection_datas)?;
+    insert_tokens(publisher, tokens)?;
+
     Ok(())
 }
 
@@ -114,6 +126,7 @@ fn insert_to_db(
     token_activities: Vec<TokenActivity>,
     current_token_claims: Vec<CurrentTokenPendingClaim>,
     current_ans_lookups: Vec<CurrentAnsLookup>,
+    nft_points: Vec<NftPoints>,
 ) -> Result<(), diesel::result::Error> {
     aptos_logger::trace!(
         name = name,
@@ -140,6 +153,7 @@ fn insert_to_db(
                 &token_activities,
                 &current_token_claims,
                 &current_ans_lookups,
+                &nft_points,
             )
         }) {
         Ok(_) => Ok(()),
@@ -157,6 +171,7 @@ fn insert_to_db(
                 let token_activities = clean_data_for_db(token_activities, true);
                 let current_token_claims = clean_data_for_db(current_token_claims, true);
                 let current_ans_lookups = clean_data_for_db(current_ans_lookups, true);
+                let nft_points = clean_data_for_db(nft_points, true);
 
                 insert_to_db_impl(
                     publisher,
@@ -170,6 +185,7 @@ fn insert_to_db(
                     &token_activities,
                     &current_token_claims,
                     &current_ans_lookups,
+                    &nft_points,
                 )
             }),
     }
@@ -273,6 +289,7 @@ fn insert_token_activities(
     publisher.send("TokenActivity", items_to_insert);
     Ok(())
 }
+
 fn insert_current_token_claims(
     conn: &mut PgConnection,
     items_to_insert: &[CurrentTokenPendingClaim],
@@ -337,6 +354,27 @@ fn insert_current_ans_lookups(
     Ok(())
 }
 
+fn insert_nft_points(
+    conn: &mut PgConnection,
+    items_to_insert: &[NftPoints],
+) -> Result<(), diesel::result::Error> {
+    use schema::nft_points::dsl::*;
+
+    let chunks = get_chunks(items_to_insert.len(), NftPoints::field_count());
+
+    for (start_ind, end_ind) in chunks {
+        execute_with_better_error(
+            conn,
+            diesel::insert_into(schema::nft_points::table)
+                .values(&items_to_insert[start_ind..end_ind])
+                .on_conflict(transaction_version)
+                .do_nothing(),
+            None,
+        )?;
+    }
+    Ok(())
+}
+
 #[async_trait]
 impl TransactionProcessor for CTokenTransactionProcessor {
     fn name(&self) -> &'static str {
@@ -361,6 +399,9 @@ impl TransactionProcessor for CTokenTransactionProcessor {
         let mut all_token_datas = vec![];
         let mut all_collection_datas = vec![];
         let mut all_token_activities = vec![];
+
+        // This is likely temporary
+        let mut all_nft_points = vec![];
 
         // Hashmap key will be the PK of the table, we do not want to send duplicates writes to the db within a batch
         let mut all_current_token_ownerships: HashMap<
@@ -409,6 +450,13 @@ impl TransactionProcessor for CTokenTransactionProcessor {
             let current_ans_lookups =
                 CurrentAnsLookup::from_transaction(&txn, self.ans_contract_address.clone());
             all_current_ans_lookups.extend(current_ans_lookups);
+
+            // NFT points
+            let nft_points_txn =
+                NftPoints::from_transaction(&txn, self.nft_points_contract.clone());
+            if let Some(nft_points) = nft_points_txn {
+                all_nft_points.push(nft_points);
+            }
         }
 
         // Getting list of values and sorting by pk in order to avoid postgres deadlock since we're doing multi threaded db writes
@@ -477,6 +525,7 @@ impl TransactionProcessor for CTokenTransactionProcessor {
             all_token_activities,
             all_current_token_claims,
             all_current_ans_lookups,
+            all_nft_points,
         );
         match tx_result {
             Ok(_) => Ok(ProcessingResult::new(

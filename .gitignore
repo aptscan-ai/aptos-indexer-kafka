@@ -111,3 +111,5 @@ src/adhoc/*
 
 graphql/generated_schemas
 .idea
+
+config.json

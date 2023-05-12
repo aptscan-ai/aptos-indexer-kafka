@@ -168,6 +168,7 @@ pub async fn run_forever(config: IndexerConfig, context: Arc<Context>) {
         CProcessor::TokenProcessor => Arc::new(CTokenTransactionProcessor::new(
             conn_pool.clone(),
             config.ans_contract_address,
+            config.nft_points_contract,
             publisher,
         )),
         CProcessor::CoinProcessor => Arc::new(CCoinTransactionProcessor::new(conn_pool.clone(), publisher)),

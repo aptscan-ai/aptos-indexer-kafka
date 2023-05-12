@@ -157,6 +157,7 @@ diesel::table! {
         voter_address -> Varchar,
         last_transaction_version -> Int8,
         inserted_at -> Timestamp,
+        operator_address -> Varchar,
     }
 }
 
@@ -249,6 +250,14 @@ diesel::table! {
 }
 
 diesel::table! {
+    delegated_staking_pools (staking_pool_address) {
+        staking_pool_address -> Varchar,
+        first_transaction_version -> Int8,
+        inserted_at -> Timestamp,
+    }
+}
+
+diesel::table! {
     events (account_address, creation_number, sequence_number) {
         sequence_number -> Int8,
         creation_number -> Int8,
@@ -306,6 +315,18 @@ diesel::table! {
         generic_type_params -> Nullable<Jsonb>,
         data -> Nullable<Jsonb>,
         is_deleted -> Bool,
+        inserted_at -> Timestamp,
+    }
+}
+
+diesel::table! {
+    nft_points (transaction_version) {
+        transaction_version -> Int8,
+        owner_address -> Varchar,
+        token_name -> Text,
+        point_type -> Text,
+        amount -> Numeric,
+        transaction_timestamp -> Timestamp,
         inserted_at -> Timestamp,
     }
 }
@@ -535,11 +556,13 @@ diesel::allow_tables_to_appear_in_same_query!(
     current_token_ownerships,
     current_token_pending_claims,
     delegated_staking_activities,
+    delegated_staking_pools,
     events,
     indexer_status,
     ledger_infos,
     move_modules,
     move_resources,
+    nft_points,
     processor_status,
     processor_statuses,
     proposal_votes,
