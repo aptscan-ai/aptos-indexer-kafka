@@ -1,0 +1,14 @@
+{
+  "kafka": {
+    "bootstrap.servers": "localhost:9092",
+    "security.protocol": "PLAINTEXT",
+    "queue.buffering.max.messages": "5000000",
+    "queue.buffering.max.kbytes": "52428800",
+    "message.max.bytes": "100000000",
+    "linger.ms": "5"
+  },
+  "topics": {
+    "transaction_topic": "apscan.indexer.transaction",
+    "coin_info_topic": "apscan.indexer.coin.info"
+  }
+}

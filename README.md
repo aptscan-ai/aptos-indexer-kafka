@@ -1,3 +1,42 @@
+# Aptscan 's Aptos Indexer Repository
+
+Welcome to the AptScan's Aptos Indexer repository! This repository provides an efficient and comprehensive indexing solution for the Aptos dataset, enabling easy access and analysis of the data.
+
+## Overview
+
+The purpose of this repository is to enhance the existing Aptos indexer by adding Kafka support. This addition allows for real-time streaming of data updates and enables seamless integration with Kafka-based data processing pipelines.
+
+## Organization: aptscan.ai
+
+As the proud owners of this repository, `aptscan.ai` is committed to maintaining and enhancing the Aptos data index, making it a reliable resource for researchers, practitioners, and developers in the field of ophthalmology.
+
+## Features
+
+- Indexing of Aptos dataset for easy data retrieval and exploration.
+- Seamless integration with Kafka for real-time data streaming and processing.
+
+## Getting Started
+
+To get started with using the Aptos data index repository, please follow the instructions below:
+
+1. Replace the aptos-core indexer with the indexer from this repository.
+
+2. Rename `config.json.example` to `config.json` and customize it to adapt to your environment. Modify the configuration settings in `config.json` to match your specific setup, including Kafka broker addresses, topic names, and other relevant parameters.
+
+By completing these steps, you will replace the aptos-core indexer with the updated version from this repository and configure it to suit your environment.
+We appreciate your interest in AptScan's Aptos Indexer repository.
+
+Happy exploring and analyzing the Aptos dataset!
+
+### Contribution
+
+PRs are welcome! This is the quickest way to get your changes ingested into the Aptos system. PR's should be made against the `master` branch. Please include testing details.
+
+<br/>
+
+---
+
+<br/>
 # Aptos Indexer
 
 > Tails the blockchain's transactions and pushes them into a postgres DB
