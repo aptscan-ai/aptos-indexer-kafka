@@ -37,6 +37,7 @@ PRs are welcome! This is the quickest way to get your changes ingested into the 
 ---
 
 <br/>
+
 # Aptos Indexer
 
 > Tails the blockchain's transactions and pushes them into a postgres DB
