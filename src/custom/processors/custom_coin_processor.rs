@@ -10,6 +10,7 @@ use crate::{
         transaction_processor::TransactionProcessor,
     },
     models::coin_models::{
+        account_transactions::AccountTransaction,
         coin_activities::{CoinActivity, CurrentCoinBalancePK},
         coin_balances::{CoinBalance, CurrentCoinBalance},
         coin_infos::{CoinInfo, CoinInfoQuery},
@@ -59,12 +60,14 @@ fn insert_to_db_impl(
     coin_balances: &[CoinBalance],
     current_coin_balances: &[CurrentCoinBalance],
     coin_supply: &[CoinSupply],
+    account_transactions: &[AccountTransaction],
 ) -> Result<(), diesel::result::Error> {
     // insert_coin_activities(publisher, coin_activities)?;
-    insert_coin_infos(publisher, coin_infos)?;
+    // insert_coin_infos(publisher, coin_infos)?;
     // insert_coin_balances(publisher, coin_balances)?;
     // insert_current_coin_balances(publisher, current_coin_balances)?;
     // insert_coin_supply(publisher, coin_supply)?;
+    // insert_account_transactions(conn, account_transactions)?;
     Ok(())
 }
 
@@ -79,6 +82,7 @@ fn insert_to_db(
     coin_balances: Vec<CoinBalance>,
     current_coin_balances: Vec<CurrentCoinBalance>,
     coin_supply: Vec<CoinSupply>,
+    account_transactions: Vec<AccountTransaction>,
 ) -> Result<(), diesel::result::Error> {
     aptos_logger::trace!(
         name = name,
@@ -98,6 +102,7 @@ fn insert_to_db(
                 &coin_balances,
                 &current_coin_balances,
                 &coin_supply,
+                &account_transactions,
             )
         }) {
         Ok(_) => Ok(()),
@@ -109,6 +114,8 @@ fn insert_to_db(
                 let coin_infos = clean_data_for_db(coin_infos, true);
                 let coin_balances = clean_data_for_db(coin_balances, true);
                 let current_coin_balances = clean_data_for_db(current_coin_balances, true);
+                let coin_supply = clean_data_for_db(coin_supply, true);
+                let account_transactions = clean_data_for_db(account_transactions, true);
 
                 insert_to_db_impl(
                     publisher,
@@ -118,6 +125,7 @@ fn insert_to_db(
                     &coin_balances,
                     &current_coin_balances,
                     &coin_supply,
+                    &account_transactions,
                 )
             }),
     }
@@ -188,6 +196,8 @@ impl TransactionProcessor for CCoinTransactionProcessor {
             HashMap::new();
         let mut all_coin_supply = vec![];
 
+        let mut account_transactions = HashMap::new();
+
         for txn in &transactions {
             let (
                 mut coin_activities,
@@ -204,16 +214,25 @@ impl TransactionProcessor for CCoinTransactionProcessor {
                 all_coin_infos.entry(key).or_insert(value);
             }
             all_current_coin_balances.extend(current_coin_balances);
+
+            account_transactions.extend(AccountTransaction::from_transaction(txn).unwrap());
         }
         let mut all_coin_infos = all_coin_infos.into_values().collect::<Vec<CoinInfo>>();
         let mut all_current_coin_balances = all_current_coin_balances
             .into_values()
             .collect::<Vec<CurrentCoinBalance>>();
+        let mut account_transactions = account_transactions
+            .into_values()
+            .collect::<Vec<AccountTransaction>>();
 
         // Sort by PK
         all_coin_infos.sort_by(|a, b| a.coin_type.cmp(&b.coin_type));
         all_current_coin_balances.sort_by(|a, b| {
             (&a.owner_address, &a.coin_type).cmp(&(&b.owner_address, &b.coin_type))
+        });
+        account_transactions.sort_by(|a, b| {
+            (&a.transaction_version, &a.account_address)
+                .cmp(&(&b.transaction_version, &b.account_address))
         });
 
         let tx_result = insert_to_db(
@@ -227,6 +246,7 @@ impl TransactionProcessor for CCoinTransactionProcessor {
             all_coin_balances,
             all_current_coin_balances,
             all_coin_supply,
+            account_transactions,
         );
         match tx_result {
             Ok(_) => Ok(ProcessingResult::new(
