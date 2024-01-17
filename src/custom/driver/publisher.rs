@@ -1,4 +1,6 @@
 use std::collections::HashMap;
+
+use poem_openapi::types::ToJSON;
 use serde::Serialize;
 
 use {
@@ -6,6 +8,7 @@ use {
         producer::{BaseRecord, DefaultProducerContext, ThreadedProducer},
     },
 };
+use aptos_api_types::Transaction;
 
 use crate::custom::driver::config::DriverConfig;
 use crate::custom::driver::producer::Producer;
@@ -39,7 +42,20 @@ impl Publisher {
         let n = list_objects.len();
         let topic = self.get_topic(model);
         for i in 0..n {
+            // let ni = i.clone();
+            // let log = serde_json::to_string(&list_objects[ni]).unwrap();
+            // println!("\nCheck_log_Transaction_Details: {}", log);
+
             let serialized_obj = serde_json::to_string(&list_objects[i]).unwrap();
+            self.producer.send(BaseRecord::<Vec<u8>, _>::to(&topic).payload(serialized_obj.as_bytes())).expect("Failed to send message");
+        }
+    }
+
+    pub fn send_transaction(&self, model: &str, list_objects: &[Transaction]) {
+        let n = list_objects.len();
+        let topic = self.get_topic(model);
+        for i in 0..n {
+            let serialized_obj = &list_objects[i].to_json_string();
             self.producer.send(BaseRecord::<Vec<u8>, _>::to(&topic).payload(serialized_obj.as_bytes())).expect("Failed to send message");
         }
     }

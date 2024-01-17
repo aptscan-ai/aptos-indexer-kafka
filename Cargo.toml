@@ -46,6 +46,7 @@ sha2 = { workspace = true }
 tokio = { workspace = true }
 url = { workspace = true }
 rdkafka = { version = "0.29.0" }
+poem-openapi = { workspace = true }
 
 [dev-dependencies]
 aptos-api-test-context = { workspace = true }
