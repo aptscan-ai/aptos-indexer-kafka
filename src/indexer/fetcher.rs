@@ -244,7 +244,7 @@ async fn fetch_nexts(
 
     let state_view = context.latest_state_view().unwrap();
     let resolver = state_view.as_move_resolver();
-    let converter = resolver.as_converter(context.db.clone());
+    let converter = resolver.as_converter(context.db.clone(), context.table_info_reader.clone());
 
     let mut transactions = vec![];
     for (ind, raw_txn) in raw_txns.into_iter().enumerate() {
@@ -282,6 +282,10 @@ async fn fetch_nexts(
                     Transaction::StateCheckpointTransaction(ref mut sct) => {
                         sct.info.block_height = Some(block_height_bcs);
                         sct.info.epoch = Some(epoch_bcs);
+                    },
+                    Transaction::ValidatorTransaction(ref mut st) => {
+                        st.info.block_height = Some(block_height_bcs);
+                        st.info.epoch = Some(epoch_bcs);
                     },
                 };
                 txn

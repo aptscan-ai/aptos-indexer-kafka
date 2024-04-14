@@ -112,13 +112,13 @@ pub fn bootstrap(
         let new_node_config = node_config.clone();
 
         runtime.spawn(async move {
-            let context = Arc::new(Context::new(chain_id, new_db, new_mp_sender, new_node_config));
+            let context = Arc::new(Context::new(chain_id, new_db, new_mp_sender, new_node_config, None));
             run_forever(new_indexer_config, context).await;
         });
     }
 
     runtime.spawn(async move {
-        let context = Arc::new(Context::new(chain_id, db, mp_sender, node_config));
+        let context = Arc::new(Context::new(chain_id, db, mp_sender, node_config, None));
         run_forever(indexer_config, context).await;
     });
 

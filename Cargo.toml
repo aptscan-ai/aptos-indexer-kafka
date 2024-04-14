@@ -30,13 +30,7 @@ bcs = { workspace = true }
 bigdecimal = { workspace = true }
 chrono = { workspace = true }
 clap = { workspace = true }
-diesel = { workspace = true, features = [
-    "chrono",
-    "postgres",
-    "r2d2",
-    "numeric",
-    "serde_json",
-] }
+diesel = { workspace = true }
 diesel_migrations = { workspace = true }
 field_count = { workspace = true }
 futures = { workspace = true }
@@ -52,7 +46,6 @@ sha2 = { workspace = true }
 tokio = { workspace = true }
 url = { workspace = true }
 rdkafka = { version = "0.29.0" }
-poem-openapi = { workspace = true }
 
 [dev-dependencies]
 aptos-api-test-context = { workspace = true }
