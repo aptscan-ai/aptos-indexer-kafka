@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use serde::Serialize;
+use poem_openapi::types::ToJSON;
 
 use {
     rdkafka::{
@@ -9,6 +10,7 @@ use {
 
 use crate::custom::driver::config::DriverConfig;
 use crate::custom::driver::producer::Producer;
+use aptos_api_types::Transaction;
 
 pub struct Publisher {
     producer: ThreadedProducer<DefaultProducerContext>,
@@ -41,6 +43,26 @@ impl Publisher {
         for i in 0..n {
             let serialized_obj = serde_json::to_string(&list_objects[i]).unwrap();
             self.producer.send(BaseRecord::<Vec<u8>, _>::to(&topic).payload(serialized_obj.as_bytes())).expect("Failed to send message");
+        }
+    }
+
+    pub fn send_transaction(&self, model: &str, list_objects: &[Transaction]) {
+        let n = list_objects.len();
+        let topic = self.get_topic(model);
+        for i in 0..n {
+            let ic = i.clone();
+            match serde_json::to_string(&list_objects[i]) {
+                Ok(serialized_obj) => {
+                    self.producer.send(BaseRecord::<Vec<u8>, _>::to(&topic).payload(serialized_obj.as_bytes())).expect("Failed to send message");
+                }
+                Err(err) => {
+                    eprintln!("Error serializing object, use another method to serialize");
+                    let serialized_obj = &list_objects[ic].to_json_string();
+                    let log = serialized_obj.clone();
+                    println!("New serialized obj when serializing error: {}", log);
+                    self.producer.send(BaseRecord::<Vec<u8>, _>::to(&topic).payload(serialized_obj.as_bytes())).expect("Failed to send message");
+                }
+            }
         }
     }
 

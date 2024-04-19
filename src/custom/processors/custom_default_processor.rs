@@ -487,7 +487,7 @@ fn custom_insert_to_db(
         end_version = end_version,
         "Inserting to db",
     );
-    publisher.send("TransactionModel", &txns);
+    publisher.send_transaction("TransactionModel", &txns);
     Ok(())
 }
 
